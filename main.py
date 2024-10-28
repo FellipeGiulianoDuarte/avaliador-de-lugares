@@ -3,7 +3,6 @@ import requests
 import google.generativeai as genai
 from dotenv import load_dotenv
 
-# Carregar variáveis de ambiente
 load_dotenv()
 
 GOOGLE_API_KEY = os.getenv("GOOGLE_MAPS_API_KEY")
@@ -73,7 +72,7 @@ def main():
 
         if reviews:
             summary = summarize_reviews(reviews)
-            print(f"Place Rating: {rating}\nSummary:\n{summary}")
+            print(f"Place Rating: {rating}\n{summary}")
         else:
             print("No reviews found for this place.")
     else:
