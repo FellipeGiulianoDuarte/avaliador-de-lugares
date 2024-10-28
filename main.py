@@ -3,6 +3,7 @@ import requests
 import google.generativeai as genai
 from dotenv import load_dotenv
 
+# Carregar variáveis de ambiente
 load_dotenv()
 
 GOOGLE_API_KEY = os.getenv("GOOGLE_MAPS_API_KEY")
@@ -10,27 +11,20 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 genai.configure(api_key=GEMINI_API_KEY)
 model = genai.GenerativeModel(model_name="gemini-1.5-flash")
 
-def get_place_id(query):
-    url = "https://places.googleapis.com/v1/places:searchText"
-    headers = {
-        "Content-Type": "application/json",
-        "X-Goog-Api-Key": GOOGLE_API_KEY,
-    }
-    data = {
-        "textQuery": query,
-    }
-    response = requests.post(url, json=data, headers=headers)
-    response_json = response.json()
+def search_place(query):
+    url = f"https://maps.googleapis.com/maps/api/place/textsearch/json?query={query}&key={GOOGLE_API_KEY}"
+    response = requests.get(url)
+    results = response.json()
 
-    if "places" in response_json and response_json["places"]:
-        place = response_json["places"][0]
-        return place["id"], place["displayName"]["text"], place["formattedAddress"]
+    if results["status"] == "OK" and results["results"]:
+        place = results["results"][0]  # Pega o primeiro resultado
+        return place["place_id"], place["name"], place["formatted_address"]
     else:
         print("Place not found.")
         return None, None, None
 
 def get_place_details(place_id):
-    url = f"https://maps.googleapis.com/maps/api/place/details/json?placeid={place_id}&key={GOOGLE_API_KEY}"
+    url = f"https://maps.googleapis.com/maps/api/place/details/json?place_id={place_id}&fields=rating,reviews&key={GOOGLE_API_KEY}"
     response = requests.get(url)
     place_data = response.json()
 
@@ -44,8 +38,15 @@ def get_place_details(place_id):
         return None, None
 
 def summarize_reviews(reviews):
-    positive_reviews = [review["text"] for review in reviews if review.get("rating", 0) >= 4]
-    negative_reviews = [review["text"] for review in reviews if review.get("rating", 0) < 4]
+    unique_reviews = {}
+
+    for review in reviews:
+        text = review["text"]
+        if text not in unique_reviews:
+            unique_reviews[text] = review.get("rating", 0)
+
+    positive_reviews = [text for text, rating in unique_reviews.items() if rating >= 4]
+    negative_reviews = [text for text, rating in unique_reviews.items() if rating < 4]
 
     chat_prompt = (
         f"Please summarize the reviews of a place with the following details:\n"
@@ -60,16 +61,19 @@ def summarize_reviews(reviews):
 
 def main():
     query = input("Enter the place you want to search for: ")
-    place_id, place_name, address = get_place_id(query)
+    place_id, place_name, address = search_place(query)
 
     if place_id:
-        print(f"\nFound place: {place_name}\nAddress: {address}\n")
+        # Criar link do Google Maps
+        maps_link = f"https://www.google.com/maps/place/?q=place_id:{place_id}"
+
+        print(f"\nFound place: {place_name}\nAddress: {address}\nLink: {maps_link}\n")
 
         rating, reviews = get_place_details(place_id)
 
         if reviews:
             summary = summarize_reviews(reviews)
-            print(f"\nPlace Rating: {rating}\nSummary:\n{summary}")
+            print(f"Place Rating: {rating}\nSummary:\n{summary}")
         else:
             print("No reviews found for this place.")
     else:
